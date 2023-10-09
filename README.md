@@ -231,7 +231,7 @@ text: I think the new policy is a great step forward. It will definitely improve
 }
 ```
 
-## \stance_detection
+## \extract_keywords
 
 #### Request Body
 text: Broadcom agreed to acquire cloud computing company VMware in a $61 billion (€57bn) cash-and stock deal, massively diversifying the chipmaker’s business and almost tripling its software-related revenue to about 45% of its total sales. By the numbers: VMware shareholders will receive either $142.50 in cash or 0.2520 of a Broadcom share for each VMware stock. Broadcom will also assume $8 billion of VMware's net debt.
