@@ -18,9 +18,6 @@ def transcribe_audio():
         # Check if the file has a valid format (e.g., WAV)
         if audio_file.filename == "":
             return jsonify({"error": "No selected file."}), 400
-
-        if not audio_file.filename.lower().endswith((".wav")):
-            return jsonify({"error": "Invalid file format. WAV format is required."}), 400
         
         transcription = transcribe.process_audio(audio_file)
 

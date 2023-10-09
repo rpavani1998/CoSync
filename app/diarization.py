@@ -14,8 +14,9 @@ from app.transcribe import Transcribe
 
 diarization_blueprint = Blueprint("diarization", __name__)
 
-#reusing whishper model used for transcription
+# Reusing Whisper model used for transcription
 transcribe = Transcribe()
+
 # Initialize the speaker embedding model
 embedding_model = PretrainedSpeakerEmbedding("speechbrain/spkrec-ecapa-voxceleb")
 
@@ -32,8 +33,7 @@ def diarize_audio():
         if audio_file.filename == "":
             return jsonify({"error": "No selected file."}), 400
 
-        if not audio_file.filename.lower().endswith((".wav")):
-            return jsonify({"error": "Invalid file format. WAV format is required."}), 400
+        num_speakers = int(request.args.get("num_speakers", 2))  # Get the number of speakers as a query parameter
 
         model = transcribe.model
 
@@ -66,7 +66,6 @@ def diarize_audio():
         embeddings = np.nan_to_num(embeddings)
 
         # Perform speaker diarization using clustering
-        num_speakers = 2
         clustering = AgglomerativeClustering(num_speakers).fit(embeddings)
         labels = clustering.labels_
 
