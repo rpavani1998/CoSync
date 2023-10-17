@@ -1,0 +1,103 @@
+import datetime
+import wave
+import contextlib
+import numpy as np
+from flask import Blueprint, request, jsonify
+from sklearn.cluster import AgglomerativeClustering
+from pyannote.audio.pipelines.speaker_verification import PretrainedSpeakerEmbedding
+from pyannote.audio import Audio
+from pyannote.core import Segment
+from app.transcribe import Transcribe
+import logging
+import librosa
+import numpy as np
+
+diarization_blueprint = Blueprint("diarization", __name__)
+transcribe = Transcribe()
+embedding_model = PretrainedSpeakerEmbedding("speechbrain/spkrec-ecapa-voxceleb")
+
+logging.basicConfig(level=logging.INFO)
+
+def process_audio_file(file_storage):
+    # Convert FileStorage to Bytes
+    audio_bytes = file_storage.read()
+    # Load Bytes into Numpy Array
+    audio_array, sr = librosa.load(librosa.io.BytesIO(audio_bytes), sr=None)
+    return audio_array
+
+def validate_audio_file(audio_file):
+    return "audio" in request.files and audio_file.filename != ""
+
+def get_audio_duration(audio_file):
+    with contextlib.closing(wave.open(audio_file, 'r')) as f:
+        frames = f.getnframes()
+        rate = f.getframerate()
+        return frames / float(rate)
+
+def compute_segment_embedding(segment, duration, audio_file):
+    start = segment["start"]
+    end = min(duration, segment["end"])
+    clip = Segment(start, end)
+    audio = Audio()
+    waveform, _ = audio.crop(audio_file, clip)
+    return embedding_model(waveform[None])
+
+def compute_embeddings(segments, duration, audio_file):
+    embeddings = np.zeros((len(segments), 192))
+    for i, segment in enumerate(segments):
+        embeddings[i] = compute_segment_embedding(segment, duration, audio_file)
+    return np.nan_to_num(embeddings)
+
+def assign_speaker_labels_to_segments(segments, labels):
+    for i, segment in enumerate(segments):
+        segment["speaker"] = 'SPEAKER ' + str(labels[i] + 1)
+
+def process_segments(segments, labels):
+    speaker_segments = []
+    for i, segment in enumerate(segments):
+        segment["speaker"] = 'SPEAKER ' + str(labels[i] + 1)
+        if i == 0 or segments[i - 1]["speaker"] != segment["speaker"]:
+            speaker_info = {
+                "speaker": segment["speaker"],
+                "start_time": str(convert_seconds_to_timedelta(segment["start"])),
+                "transcription": segment["text"][1:]
+            }
+            speaker_segments.append(speaker_info)
+        else:
+            speaker_segments[-1]["transcription"] += ' ' + segment["text"][1:]
+    return speaker_segments
+
+def convert_seconds_to_timedelta(secs):
+    return datetime.timedelta(seconds=round(secs))
+
+@diarization_blueprint.route("/diarization", methods=["POST"])
+def diarize_audio():
+    try:
+        audio_file = request.files.get("audio")
+        if not validate_audio_file(audio_file):
+            logging.warning("No valid audio file provided.")
+            return jsonify({"error": "No valid audio file provided."}), 400
+        audio_array = process_audio_file(audio_file)
+
+        num_speakers = int(request.args.get("num_speakers", 2))
+        model = transcribe.model
+        result = model.transcribe(audio_file)
+        segments = result["segments"]
+        duration = get_audio_duration(audio_file)
+
+        embeddings = compute_embeddings(segments, duration, audio_file)
+        clustering = AgglomerativeClustering(num_speakers).fit(embeddings)
+        labels = clustering.labels_
+
+        speaker_segments = process_segments(segments, labels)
+
+        return jsonify({"speaker_segments": speaker_segments}), 200
+    except Exception as e:
+        logging.error(f"Error: {str(e)}")
+        return jsonify({"error": "Internal Server Error"}), 500
+
+if __name__ == "__main__":
+    from flask import Flask
+    app = Flask(__name__)
+    app.register_blueprint(diarization_blueprint)
+    app.run(debug=True)

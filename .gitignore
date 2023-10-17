@@ -1,0 +1,34 @@
+# Virtual environment
+venv/
+my_env/
+.venv/
+
+# Byte-compiled Python files
+*.pyc
+*.pyo
+__pycache__/
+
+# Flask config and session files
+*.cfg
+*.conf
+instance/
+*.log
+
+# SQLite database
+*.db
+*.sqlite
+
+# Node modules (if using Node.js tools for frontend)
+node_modules/
+
+# Miscellaneous
+*.swp  # Vim swap files
+.DS_Store  # MacOS folder settings
+*.egg-info  # Python egg metadata
+dist/  # Python distribution artifacts
+*.log  # Log files
+
+# If using IDEs
+.idea/  # PyCharm
+*.code-workspace  # VS Code
+.vscode/
