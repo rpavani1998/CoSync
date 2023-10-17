@@ -1,6 +1,11 @@
-from flask import Flask, request, jsonify, Blueprint
+from flask import Flask, request, jsonify, Blueprint, make_response
 from transformers import pipeline
 import torch
+import plotly.express as px
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
+from markupsafe import Markup
+
 # Define a Blueprint for the analysis endpoints
 analysis_blueprint = Blueprint("analysis", __name__)
 
@@ -18,8 +23,38 @@ def analyze_emotion_metrics():
         classifier = pipeline(task="text-classification", model="SamLowe/roberta-base-go_emotions", top_k=None)
         model_outputs = classifier([text])
 
-        return jsonify(model_outputs[0]), 200
+        # Create a Plotly bar chart for emotion analysis
+        emotion_labels = [e["label"] for e in model_outputs[0]]
+        emotion_scores = [e["score"] for e in model_outputs[0]]
 
+        fig = px.bar(
+            x=emotion_scores,  
+            y=emotion_labels,  
+            orientation='h',   
+            labels={"x": "Score", "y": "Emotion"},
+            title="Emotion Analysis"
+        )
+
+        # Save the Plotly figure as an HTML file
+        plotly_html_filename = "emotion_plot.html"
+        fig.write_html(plotly_html_filename)
+
+        # Return JSON and the HTML file as an attachment
+        response_data = {
+            "emotion_metrics": model_outputs[0],
+        }
+
+        headers = {
+            "Content-Type": "application/json"
+        }
+
+        response = make_response(jsonify(response_data))
+        response.headers = headers
+        response.headers["Content-Disposition"] = f'attachment; filename={plotly_html_filename}'
+        response.data = open(plotly_html_filename, "rb").read()
+
+        return response
+    
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
